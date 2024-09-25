@@ -12,10 +12,6 @@ output:
 
 
 
-
-
-> Replace the NA below with the correct value, we define state 1 as H, state 2 as S0, and state 3 as D.
-
 ```{r}
 set.seed(42) # we use this function to get reproducible results.
 a <- 0.799 # here we calculated the probability of transition from state 1 to state 1 by subtracting the other probabilities of transitioning of state 1 (0.2 + 0.001) from the total 1.
@@ -80,8 +76,6 @@ plot(1:n_days, patient_record, "l") # plotting
  
  
 # Q2 Gene Expression Data Analysis
-
-> Study the following code example and add comments to describe what it does: 
  
  
 ```{r}
@@ -107,7 +101,7 @@ out <- glm(y ~ x + z + lib_size, data = tmp, family = "poisson")
 p_val <- summary(out)$coefficients[2, 4] # here we extract the p-value. 
 ```
  
-> Using the code from question 1, perform a regression-based analysis to identify genes that are differentially expressed between all normal and tumour samples using Poisson regression. Plot the appropriate -log10 p-values from your analysis.
+> perform a regression-based analysis to identify genes that are differentially expressed between all normal and tumour samples using Poisson regression. Plot the appropriate -log10 p-values from your analysis.
 
 ```{r}
 # we are going to call GLM function for each gene to get the p-values.
@@ -137,7 +131,7 @@ Note: here I wasn't able to use ggplot function because the package couldn't be 
 
 
 
-> What other regression methods could you use to identify differentially expressed genes. Give a reason why. Then perform the analysis and plot the appropriate p-values
+> Other regression methods could be used to identify differentially expressed genes. 
 
 We can use negative binomial model, because it is like a generalisation of the Poisson regression, and it has a dispersion parameter value that is not equal to 1, unlike the Poisson regression model which is always equal to 1. This means that the Poisson regression model is nested in the negative bionomial model and that is why we can use it as an alternative.  
 ```{r}
