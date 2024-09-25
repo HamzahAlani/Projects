@@ -1,0 +1,290 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+```{r}
+
+```
+
+```{r}
+## For gene ID annotation
+library(biomaRt)
+## For GSEA
+library(fgsea)
+library(data.table)
+library(BiocParallel)
+library(tidyverse)
+```
+
+```{r}
+help(package="limma")
+```
+
+```{r}
+## Read-in the differential-expression result
+result_diffExp <- read.table("input/gtex.brain.2Tiss.diff-exp.outcome.txt",sep="\t",header=TRUE,row.names = 1)
+print(result_diffExp)
+```
+```{r}
+dim(result_diffExp)
+```
+```{r}
+## How many gene IDs were differentially expressed?
+length(which(result_diffExp$adj.P.Val < 0.05))
+
+```
+```{r}
+plot(density(result_diffExp$logFC))
+```
+
+```{r}
+## First, we would create a BioMart object
+ensembl <- useEnsembl(biomart = "genes", dataset = "hsapiens_gene_ensembl")
+```
+
+```{r}
+## Then use that to download the gene symbol and chromosome name annotations for all the gene IDs in our diff.-exp. dataset
+myAnno <- getBM(attributes = c("ensembl_gene_id","chromosome_name","hgnc_symbol"),filters="ensembl_gene_id",values = rownames(result_diffExp), mart = ensembl)
+```
+
+```{r}
+head(myAnno,3)
+```
+```{r}
+dim(myAnno)
+## Are any gene IDs repeated?
+length(unique(myAnno$ensembl_gene_id))
+```
+```{r}
+## Two ENSG IDs are repeated. Which are they?
+which(duplicated(myAnno$ensembl_gene_id))
+
+```
+```{r}
+myAnno[which(duplicated(myAnno$ensembl_gene_id)),]
+```
+```{r}
+#now we find where they are
+grep("ENSG00000276085",myAnno$ensembl_gene_id)
+grep("ENSG00000230417",myAnno$ensembl_gene_id)
+```
+
+```{r}
+myAnno[c(21083 ,21084,24030 ,24031),]
+```
+```{r}
+## We would create a new object by removing all those rows
+myAnno_clean2 <- myAnno[-c(21083,21084,24030,24031),]
+
+## Check the dimensions of the new object
+dim(myAnno_clean2)
+```
+```{r}
+## duplicates in the gene ID column of the new object
+which(duplicated(myAnno_clean2$ensembl_gene_id))
+```
+```{r}
+length(which(myAnno_clean2$hgnc_symbol == ""))
+```
+
+```{r}
+myAnno_clean <- myAnno_clean2[which(!(myAnno_clean2$hgnc_symbol == "")),]
+dim(myAnno_clean)
+```
+```{r}
+#confirm no more empty gene symbols
+length(which(myAnno_clean$hgnc_symbol == ""))
+```
+```{r}
+## Check if there are any repetitions in the gene symbol column
+length(unique(myAnno_clean$hgnc_symbol))
+```
+
+
+
+```{r}
+## Create a list of all gene symbols with repetitions
+rednd_geneN <- myAnno_clean[which(duplicated(myAnno_clean$hgnc_symbol)),]
+rednd_geneN
+```
+
+```{r}
+# a new variable to exclude all of the rep
+my_AnnoFinal <- myAnno_clean[which(!(myAnno_clean$hgnc_symbol %in% rednd_geneN$hgnc_symbol)),]
+```
+
+```{r}
+dim(my_AnnoFinal)
+length(unique(my_AnnoFinal$hgnc_symbol))
+```
+```{r}
+head(my_AnnoFinal,3)
+```
+```{r}
+rm(myAnno,myAnno_clean1,myAnno_clean2,rednd_geneN,myAnno_clean)
+```
+
+
+```{r}
+## Now, merging the differential-expression outcome and the annotation data
+result_diffExp.anno <- merge(result_diffExp,my_AnnoFinal,by.x=0,by.y=1)
+```
+
+```{r}
+dim(result_diffExp.anno)
+
+```
+
+```{r}
+head(result_diffExp.anno,3)
+```
+
+
+
+
+
+
+
+
+
+
+## Running GSEA
+
+
+
+```{r}
+## we can either order them by the logFC value or t values. Here, we Order the differential expression outcome by t-statistic.
+result_diffExp.anno.ord <- result_diffExp.anno[order(result_diffExp.anno$t,decreasing=TRUE),]
+View(result_diffExp.anno.ord)
+```
+
+```{r}
+## Create the gene rank object
+gene.rnk <- result_diffExp.anno.ord$t
+
+## Add the gene symbols as name to the gene ranks
+names(gene.rnk) <- result_diffExp.anno.ord$hgnc_symbol
+
+```
+```{r}
+## Check
+length(gene.rnk)
+```
+ 
+```{r}
+gene.rnk[1:5]
+```
+
+```{r}
+gene.rnk[23585:23589]
+```
+
+
+
+
+
+```{r}
+## Write-out the annotated dataframe for future reference
+write.table(result_diffExp.anno.ord,"Result_files/Hypoth.vs.Hippocmps_limma_reslt.txt",sep="\t",quote=FALSE,row.names = FALSE)
+```
+
+```{r}
+## Clean up
+rm(result_diffExp,result_diffExp.anno)
+```
+
+
+
+```{r}
+#The degree of enrichment is indicated by a normalized enrichment score or NES. A significant positive NES value indicates that members of the gene set tend to appear at the top of the ranked transcriptome data and a significant negative NES indicates the opposite.
+#a positive NES will indicate that genes in set S will be mostly represented at the top of your list L. a negative NES will indicate that the genes in the set S will be mostly at the bottom of your list 
+
+MSig.Hallmark <- gmtPathways("h.all.v2022.1.Hs.symbols.gmt")
+class(MSig.Hallmark)
+```
+```{r}
+length(MSig.Hallmark)
+```
+
+```{r}
+ ## Names of the first 5 pathways in the object
+names(MSig.Hallmark)[1:5]
+```
+
+```{r}
+## Run GSEA
+gene.rnk.fgsea <- fgseaMultilevel(pathways=MSig.Hallmark,stats=gene.rnk,eps=0.0,minSize=15,maxSize=500)
+```
+
+```{r}
+## Check how many pathways significant at specified thresholds of adjusted p-value and NES
+dim(gene.rnk.fgsea %>% filter(padj < 0.001 & (NES >= 1.5 | NES <= -1.5)))
+```
+```{r}
+print(gene.rnk.fgsea)
+```
+```{r}
+(gene.rnk.fgsea %>% filter(padj < 0.001 & (NES >= 1.5 | NES <= -1.5)))[,c(1:3,6)]
+```
+
+```{r}
+## Subset the fgsea object for significant pathways
+gene.rnk.fgsea.sig <- gene.rnk.fgsea %>% filter(padj < 0.001 & (NES >= 1.5 | NES <= -1.5))
+##
+myPath.list <- gene.rnk.fgsea.sig$pathway
+length(myPath.list)
+
+```
+
+```{r}
+## Create pathway specific enrichment plots
+## We are opening a pdf file and then within a loop
+## the enrichment plots are being printed into the pdf
+pdf("Result_files/Hypoth.vs.Hippocmps.fGsea.EnrichmentPlt.pdf",width=11,height=9)
+for(i in 1:2){
+  print(plotEnrichment(MSig.Hallmark[[myPath.list[i]]],gene.rnk)+ 
+  labs(title=paste0(myPath.list[i])) + theme(plot.title = element_text(size=10),axis.text.x = 
+  element_text(size=10),axis.text.y = element_text(size=10),axis.title.x = 
+  element_text(size=10),axis.title.y = element_text(size=10)))
+}
+dev.off()
+```
+
+
+
+```{r}
+for(i in 1:2){
+  print(plotEnrichment(MSig.Hallmark[[paste0(myPath.list[i])]],gene.rnk)+ 
+  labs(title=paste0(myPath.list[i])) + theme(plot.title = element_text(size=10),axis.text.x = 
+  element_text(size=10),axis.text.y = element_text(size=10),axis.title.x = 
+  element_text(size=10),axis.title.y = element_text(size=10)))
+}
+```
+
+```{r}
+## A summary plot of all significant pathways
+result.fgsea.colapsd <- collapsePathways(gene.rnk.fgsea.sig[order(pval)][padj < 0.01],MSig.Hallmark,gene.rnk)
+result.fgsea.colapsd.MP <- gene.rnk.fgsea.sig[pathway %in% 
+result.fgsea.colapsd$mainPathways][order(-NES), pathway]  
+##
+pdf("Result_files/Hypoth.vs.Hippocmps.fGseaTablePlt.pdf",width=11,height=9)
+plotGseaTable(MSig.Hallmark[result.fgsea.colapsd.MP],gene.rnk,gene.rnk.fgsea,gseaParam = 0.5)
+dev.off()
+```
+
+```{r}
+## Save the GSEA output
+fwrite(gene.rnk.fgsea,file="Result_files/Hypoth.vs.Hippocmps.fGseaReslt.txt",sep="\t",sep2=c(""," ",""))
+```
+
+
+
+```{r}
+```
+
+
