@@ -1,0 +1,200 @@
+---
+title: "MSc Bioinformatics Coursework 2022"
+author: "Hamzah"
+date: "27/6/2022"
+output: 
+  html_document:
+    theme: cosmo
+---
+
+
+# Q1 Simulate Markov Chains
+
+
+
+
+
+> Replace the NA below with the correct value, we define state 1 as H, state 2 as S0, and state 3 as D.
+
+```{r}
+set.seed(42) # we use this function to get reproducible results.
+a <- 0.799 # here we calculated the probability of transition from state 1 to state 1 by subtracting the other probabilities of transitioning of state 1 (0.2 + 0.001) from the total 1.
+b <- 0.79 # here we calculated the probability of transition from state 2 to state 2 by subtracting the other probabilities of transitioning of state 2 (0.2 + 0.01) from the total 1.
+n_days <- 400 # we want to simulate over 400 days.
+
+transition_matrix <- matrix(c(0.799, 0.2, 0.001,
+                            0.2, 0.79, 0.01,
+                            0, 0, 1), nrow=3, ncol=3, byrow=TRUE) # creating matrix of 3x3 containing the 3 states and their transitioning.
+
+state <- 1 # we assume that the first state is 1 so we start from it.
+patient_record <- rep(0, n_days) # we create a vector to replicate 0 values for the number of days (400).
+# now we create a loop to fill the 0 values in patient_record with either 1,2 or 3, depending on the probability of every transition.
+for (day in 1:n_days) {
+  pr <- transition_matrix[state, ] # select the row of transition probabilities of the current state.
+
+  state <- sample(c(1:3), size = 1, prob = pr) # we select the next state (either 1,2 or 3) based on the  probabilities of transitioning of pr.  
+  patient_record[day] <- state # we add the next state, that the previous state transitioned to, to the vector that we created earlier (patient_record).
+}
+
+plot(1:n_days, patient_record, "l") # plotting
+```
+
+ As we can see here, the patient spends around 230 days being healthy sometimes, and sick other times, and after that they die.
+ 
+ 
+ 
+ 
+ 
+
+> Extend the code above to incorporate the 4th state creating a 4x4 transition matrix. Plot the resulting patient record and comment on the plot. We define state 1 as H, state 2 as S0, 3 as state SH and state 4 as D.
+
+```{r}
+set.seed(42) # we use this function to get reproducible results.
+
+a <- 0.799 #here we calculated the probability of transition from state 1 to state 1 by subtracting the other probabilities of state 1 transitioning (0.2 + 0.001 + 0) from the total 1.
+b <- 0.69 # here we calculated the probability of transition from state 2 to state 2 by subtracting the other probabilities of state 2 transitioning (0.2 + 0.01 + 0.1) from the total 1.
+n_days <- 400 # we want to simulate over 400 days
+
+transition_matrix <- matrix(c(0.799, 0.2, 0, 0.001,
+                            0.2, 0.69, 0.1, 0.01,
+                            0.1, 0.2, 0.5, 0.2,
+                            0, 0, 0, 1), nrow=4, ncol=4, byrow=TRUE) # creating matrix of 4x4 containing the 4 states and their transitioning.
+
+state <- 2  # we assume that the first state is 1 so we start from it.
+patient_record <- rep(0, n_days) # we create a vector to replicate 0 values for the number of days (400).
+# now we create a loop to fill the 0 values in patient_record with either 1, 2, 3 or 4, depending on the probability of every transition.
+
+for (day in 1:n_days) {
+  pr <- transition_matrix[state, ] # select the row of transition probabilities of the current state.
+
+  state <- sample(c(1:4), size = 1, prob = pr) # we select the next state (either 1, 2, 3 or 4) based on the  probabilities of transitioning of pr.  
+  patient_record[day] <- state # we add the next state, that the previous state transitioned to, to the vector that we created earlier (patient_record).
+}
+
+plot(1:n_days, patient_record, "l") # plotting
+```
+
+ Here we can see that the patient dies before day 100 because we added a new state "SH" for hospitalization, and it increases the chances of death. 
+ 
+ 
+ 
+ 
+# Q2 Gene Expression Data Analysis
+
+> Study the following code example and add comments to describe what it does: 
+ 
+ 
+```{r}
+library(MASS) # this library provides us with functions that we can use in regression. 
+
+load("assess_dataDL1.Rdata") # we load our data set.
+ls() # this lists the names of all variables that we have. 
+head(Y) # this shows the first few rows of the data in "Y".
+idx <- 20 # we define the idx variable as number 20.
+c_cl <- 1:20 # we define the c_cl variable as sequence of numbers from 1 to 20. 
+
+tmp <- data.frame(y = Y[idx, c_cl], x = X[c_cl], z = Z[c_cl],
+                  lib_size = colSums(Y[, c_cl])) # creating data frame 
+
+# "y" column includes the first 20 columns of row 20 of the matrix "Y".
+# "x" column includes the first 20 rows of the factor "X".
+# "z" column includes the first 20 rows of the factor "Z".
+# "lib_size" column includes the sums of the first 20 columns of all rows of the matrix "Y"
+
+out <- glm(y ~ x + z + lib_size, data = tmp, family = "poisson") 
+# here we create our poisson regression model using "y" as the response, and "x", "z", and "lib_size" as covariates. 
+
+p_val <- summary(out)$coefficients[2, 4] # here we extract the p-value. 
+```
+ 
+> Using the code from question 1, perform a regression-based analysis to identify genes that are differentially expressed between all normal and tumour samples using Poisson regression. Plot the appropriate -log10 p-values from your analysis.
+
+```{r}
+# we are going to call GLM function for each gene to get the p-values.
+p <- nrow(Y)
+p_vals <- rep(0, p)
+for (j in 1:p) {
+  snp_data <- data.frame(y = Y[j, ], x = X, z = Z,
+                  lib_size = colSums(Y))
+  glm_fit <- glm(y ~ x + z + lib_size, data = snp_data, family = "poisson") 
+  p_vals[j] <- summary(glm_fit)$coefficients[2, 4]
+}
+```
+
+```{r}
+# We are testing 4,627  genes, so we are going to use Bonferroni correction to adjust p-values before we plot them. 
+adj_p_vals <- p.adjust(p_vals, "bonferroni")
+p_val_df <- data.frame(p_val = adj_p_vals, idx = 1:p)
+p_val_plot <- p_val_df$p_val
+plot(p_val_plot)
+```
+
+
+here we can see that almost half of the genes are differentially expressed between tumor and normal cells.
+
+Note: here I wasn't able to use ggplot function because the package couldn't be uploaded and I kept getting an error for over a day, so I decided to use the built-in function.
+
+
+
+
+> What other regression methods could you use to identify differentially expressed genes. Give a reason why. Then perform the analysis and plot the appropriate p-values
+
+We can use negative binomial model, because it is like a generalisation of the Poisson regression, and it has a dispersion parameter value that is not equal to 1, unlike the Poisson regression model which is always equal to 1. This means that the Poisson regression model is nested in the negative bionomial model and that is why we can use it as an alternative.  
+```{r}
+# here we use the same code that we used in Poisson regression, with only changing the regression function.
+
+
+p <- nrow(Y)
+p_vals <- rep(0, p)
+for (j in 1:p) {
+  snp_data <- data.frame(y = Y[j, ], x = X, z = Z,
+                  lib_size = colSums(Y))
+  glm_fit <- glm.nb(y ~ x + z + lib_size, data = snp_data, link = log) 
+  p_vals[j] <- summary(glm_fit)$coefficients[2, 4]
+}
+```
+
+```{r}
+adj_p_vals <- p.adjust(p_vals, "bonferroni")
+p_val_df <- data.frame(p_val = adj_p_vals, idx = 1:p)
+p_val_plot <- p_val_df$p_val
+plot(p_val_plot)
+```
+
+
+> Modify the code to include the age of patients as a covariate. Does it contribute and is the effect of lib_size larger or due to age?
+
+Here we want to compare 3 models, one that has Age as a covariate, and the other one has lib_size as a covariate, and the third one has both.
+
+
+```{r}
+# model 1 with lib_size as a covariate.
+data1 <- data.frame(y = Y[5, ], x = X, z = Z,
+                  lib_size = colSums(Y))
+model1 <- glm(y ~ x + z + lib_size, data = data1, family = "poisson")
+
+#model 2 with age as a covariate.
+data2 <- data.frame(y = Y[5, ], x = X, z = Z,
+                  age_col = age)
+model2 <- glm(y ~ x + z + age_col, data = data2, family = "poisson")
+
+# model 3 with age and lib_size as covariates.
+data3 <- data.frame(y = Y[5, ], x = X, z = Z,
+                  lib_size = colSums(Y), age_col = age)
+model3 <- glm(y ~ x + z + lib_size + age_col, data = data3, family = "poisson")
+
+# now we compare the 3 models using AIC and BIC:
+
+model_select <-
+rbind(
+  c(name = "lib_size", aic = AIC(model1), bic = BIC(model1)),
+  c(name = "age", aic = AIC(model2), bic = BIC(model2)),
+  c(name = "full", aic = AIC(model3), bic = BIC(model3)))
+
+print(model_select)
+```
+
+
+
+ 
+The lower the AIC and BIC the better, thus we conclude that "lib_size" model performs better than the "age" model and the "lib_size" covariate has a bigger effect.
